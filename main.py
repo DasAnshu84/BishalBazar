@@ -3,8 +3,12 @@ from typing import Optional
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from open_router_calling import extract_ledger_from_image_bytes
+from routers import clients, transactions
 
 app = FastAPI(title="Ledger Extraction API")
+
+app.include_router(clients.router, prefix="/api/clients")
+app.include_router(transactions.router, prefix="/api/transactions")
 
 app.add_middleware(
     CORSMiddleware,
