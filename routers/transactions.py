@@ -1,19 +1,77 @@
 from fastapi import APIRouter, HTTPException, Query
 from database import supabase
-from models import TransactionCreate, TransactionUpdate, TransactionResponse
+from models import TransactionCreate, TransactionUpdate, TransactionResponse, BulkTransactionItem
 from typing import List, Optional
 
 router = APIRouter(tags=["Transactions"])
 
 @router.post("/", response_model=TransactionResponse)
 def create_transaction(transaction: TransactionCreate):
-    data = transaction.model_dump()
+    data = transaction.model_dump(exclude={"date"})
     data["client_id"] = str(data["client_id"]) # UUID to string for JSON serialization
+    if transaction.date:
+        data["created_at"] = f"{transaction.date}T00:00:00Z"
     try:
         res = supabase.table("transactions").insert(data).execute()
         if not res.data:
             raise HTTPException(status_code=400, detail="Failed to create transaction")
         return res.data[0]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/bulk")
+def bulk_create_transactions(items: List[BulkTransactionItem]):
+    if not items:
+        raise HTTPException(status_code=400, detail="No items provided")
+
+    # Collect all unique_ids (client_codes) from the request
+    unique_ids = list(set(item.unique_id for item in items if item.unique_id))
+    
+    # Check for empty unique_ids
+    empty_ids = [i for i, item in enumerate(items) if not item.unique_id]
+    if empty_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Items at indices {empty_ids} have empty unique_id. Please provide a valid client code."
+        )
+
+    # Look up all client_codes in one query
+    try:
+        res = supabase.table("clients").select("id, client_code").in_("client_code", unique_ids).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    # Build a map: client_code -> client_id
+    code_to_id = {row["client_code"]: row["id"] for row in res.data}
+
+    # Validate all unique_ids exist
+    missing_codes = [uid for uid in unique_ids if uid not in code_to_id]
+    if missing_codes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The following client codes do not exist. Please create them in the Clients table first: {missing_codes}"
+        )
+
+    # Build transaction rows
+    rows = []
+    for item in items:
+        row = {
+            "client_id": code_to_id[item.unique_id],
+            "transaction_amount": item.total_amount
+        }
+        if item.date:
+            row["created_at"] = f"{item.date}T00:00:00Z"
+        rows.append(row)
+
+    # Bulk insert
+    try:
+        res = supabase.table("transactions").insert(rows).execute()
+        if not res.data:
+            raise HTTPException(status_code=400, detail="Failed to insert transactions")
+        return {
+            "message": f"Successfully inserted {len(res.data)} transactions",
+            "transactions": res.data
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

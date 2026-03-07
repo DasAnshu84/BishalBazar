@@ -33,7 +33,13 @@ class TransactionBase(BaseModel):
     transaction_amount: float
 
 class TransactionCreate(TransactionBase):
-    pass
+    date: Optional[str] = None  # Optional date in YYYY-MM-DD format, defaults to now
+
+class BulkTransactionItem(BaseModel):
+    unique_id: str  # Maps to client_code in clients table
+    combined_breakdown: str
+    total_amount: float
+    date: Optional[str] = None  # Optional date in YYYY-MM-DD format
 
 class TransactionUpdate(BaseModel):
     client_id: Optional[UUID] = None
