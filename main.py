@@ -34,7 +34,7 @@ async def extract_ledger(
     if idempotency_key in request_cache:
         print(f"Cache hit for key: {idempotency_key}")
         cached_csv = request_cache[idempotency_key]
-        return Response(content=cached_csv, media_type="text/csv")
+        return Response(content=cached_csv, media_type="application/json")
         
     print(f"Cache miss for key: {idempotency_key}. Processing image...")
     
@@ -45,7 +45,7 @@ async def extract_ledger(
         # Save to cache
         request_cache[idempotency_key] = csv_string
         
-        return Response(content=csv_string, media_type="text/csv")
+        return Response(content=csv_string, media_type="application/json")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

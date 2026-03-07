@@ -1,3 +1,6 @@
+from collections import defaultdict
+import re
+
 import requests
 import json
 import base64
@@ -66,19 +69,42 @@ def extract_ledger_from_image_bytes(image_bytes: bytes) -> str:
             entries = ledger_data.get("entries", [])
             if not entries:
                 return ""
-                
-            output = io.StringIO()
-            keys = entries[0].keys()
-            dict_writer = csv.DictWriter(output, fieldnames=keys)
-            dict_writer.writeheader()
-            dict_writer.writerows(entries)
-            return output.getvalue()
+            
+            # Process the AI response and convert to json string
+            return process_ai_response(entries)
+    
         else:
             raise ValueError(f"Unexpected response format: {data}")
             
     except Exception as e:
         print(f"Error extracting ledger: {e}")
         raise e
+    
+def process_ai_response(entries):
+    # Process the AI response data as needed
+    
+    #Set up our deterministic grouped dictionary
+    grouped_data = defaultdict(lambda: {"breakdown_list": [], "grand_total": 0})
+    
+    # Process line-by-line
+    for entry in entries:
+        # NORMALIZATION: Regex to remove brackets, parentheses, and periods
+        # "(S.)" -> "S", "(C.M.P.)" -> "CMP"
+        clean_id = re.sub(r'[^a-zA-Z0-9]', '', entry["unique_id"]).upper()
+        
+        # AGGREGATION & MATH
+        grouped_data[clean_id]["breakdown_list"].append(entry["breakdown"])
+        grouped_data[clean_id]["grand_total"] += entry["total_amount"]
+
+    # 4. Format the final output
+    final_results = []
+    for unique_id, data in grouped_data.items():
+        final_results.append({
+            "unique_id": unique_id,
+            "combined_breakdown": " + ".join(data["breakdown_list"]),
+            "total_amount": data["grand_total"]
+        })
+    return json.dumps(final_results, indent=2)
 
 if __name__ == "__main__":
     image_path = "sample_image.jpeg"
