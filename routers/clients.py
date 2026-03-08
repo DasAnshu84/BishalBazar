@@ -16,10 +16,10 @@ def create_client(client: ClientCreate):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/", response_model=List[ClientResponse])
-def get_clients(skip: int = Query(0, ge=0), limit: int = Query(10, le=10)):
+def get_clients(skip: int = Query(0, ge=0), limit: int = Query(600, le=1000)):
     try:
         # Supabase range is inclusive
-        res = supabase.table("clients").select("*").range(skip, skip + limit - 1).execute()
+        res = supabase.table("clients").select("*").order("client_name", desc=False).range(skip, skip + limit - 1).execute()
         return res.data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
