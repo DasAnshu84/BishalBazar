@@ -38,6 +38,11 @@ async def extract_ledger(
         
     print(f"Cache miss for key: {idempotency_key}. Processing image...")
     
+    
+    if len(request_cache) > 10:  # Simple cache eviction policy
+        print("Cache limit reached. Clearing cache.")
+        request_cache.clear()
+    
     try:
         image_bytes = await file.read()
         csv_string = extract_ledger_from_image_bytes(image_bytes)
